@@ -98,7 +98,16 @@ let add_interface (h:hierarchy) (id:id) (i:interface) : hierarchy =
 
 (* returns true if C1 <:* C2 in the class hierarchy                           *)
 let rec extends (h:hierarchy) (c1:cid) (c2:cid) : bool =
-failwith "HW5: extends not implemented"
+  let sub_name = c1.elt in
+  let super_name = c2.elt in
+
+  if sub_name = super_name then true
+
+  else try
+    let c1_super = (List.assoc sub_name h).sup in
+    if super_name = c1_super.elt then true
+    else extends h c1 @@ no_loc c1_super.elt
+  with Not_found -> false
 
 
 (* join --------------------------------------------------------------------- *)
