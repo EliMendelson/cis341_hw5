@@ -127,12 +127,6 @@ let rec join_typ (h:hierarchy) (u:typ) (t:typ) : typ option =
     | TNull, TNull -> Some (no_loc TNull)
     | TNull, TNRef _ -> Some t
     | TNRef _, TNull -> Some u
-    | TRef r, _ -> ref_join h u t
-    | TNRef r, _ -> ref_join h u t
-    | _ -> None
-  end
-and ref_join (h:hierarchy) (u:typ) (t:typ) : typ option =
-  begin match (u.elt, t.elt) with
     | TRef r, TRef s ->
       begin match (r.elt, s.elt) with
         | RString, RString -> Some u
@@ -142,42 +136,26 @@ and ref_join (h:hierarchy) (u:typ) (t:typ) : typ option =
             | Some x -> Some (no_loc (TRef (no_loc (RArray x))))
           end
         | RClass r_class, RClass s_class ->
-          if extends h r_class s_class then Some t
-          else if extends h s_class r_class then Some u
-          else ref_join h
+          if extends h r_class s_class then Some u
+          else if extends h s_class r_class then Some t
+          else join_typ h
             (no_loc (TRef (no_loc (RClass (lookup_interface r_class.elt h).sup))))
             (no_loc (TRef (no_loc (RClass (lookup_interface s_class.elt h).sup))))
-          (*failwith "class not implemented"*)
         | _ -> None
       end
-    | TRef r, TNRef s ->
-      begin match ref_join h u (no_loc (TRef s)) with
-        | None -> None
-        | Some x ->
-          begin match x.elt with
-            | TRef tr -> Some (no_loc (TNRef tr))
-            | _ -> Some x
-          end
+    | TRef r, TNRef s -> nref_join h u (no_loc (TRef s))
+    | TNRef r, TRef s -> nref_join h (no_loc (TRef r)) t
+    | TNRef r, TNRef s -> nref_join h (no_loc (TRef r)) (no_loc (TRef s))
+    | _ -> None
+  end
+and nref_join (h:hierarchy) (u:typ) (t:typ) : typ option =
+  begin match join_typ h u t with
+    | None -> None
+    | Some x ->
+      begin match x.elt with
+        | TRef tr -> Some (no_loc (TNRef tr))
+        | _ -> Some x
       end
-    | TNRef r, TRef s ->
-      begin match ref_join h (no_loc (TRef r)) t with
-        | None -> None
-        | Some x ->
-          begin match x.elt with
-            | TRef tr -> Some (no_loc (TNRef tr))
-            | _ -> Some x
-          end
-      end
-    | TNRef r, TNRef s ->
-      begin match ref_join h (no_loc (TRef r)) (no_loc (TRef s)) with
-        | None -> None
-        | Some x ->
-          begin match x.elt with
-            | TRef tr -> Some (no_loc (TNRef tr))
-            | _ -> Some x
-          end
-      end
-    | _ -> join_typ h u t
   end
   
 
