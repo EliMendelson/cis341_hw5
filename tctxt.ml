@@ -102,9 +102,8 @@ let rec extends (h:hierarchy) (c1:cid) (c2:cid) : bool =
   let super_name = c2.elt in
 
   if sub_name = super_name then true
-
   else try
-    let c1_super = (List.assoc sub_name h).sup in
+    let c1_super = (lookup_interface sub_name h).sup in
     if super_name = c1_super.elt then true
     else extends h c1 @@ no_loc c1_super.elt
   with Not_found -> false
@@ -122,7 +121,65 @@ let rec extends (h:hierarchy) (c1:cid) (c2:cid) : bool =
    NOTE: you will probably want to use the [no_loc] helper function to
    help construct the returned typ values.                                    *)
 let rec join_typ (h:hierarchy) (u:typ) (t:typ) : typ option =
-  failwith "HW5: join_typ not implemented"
+  begin match u.elt, t.elt with
+    | TBool, TBool -> Some (no_loc TBool)
+    | TInt, TInt -> Some (no_loc TInt)
+    | TNull, TNull -> Some (no_loc TNull)
+    | TNull, TNRef _ -> Some t
+    | TNRef _, TNull -> Some u
+    | TRef r, _ -> ref_join h u t
+    | TNRef r, _ -> ref_join h u t
+    | _ -> None
+  end
+and ref_join (h:hierarchy) (u:typ) (t:typ) : typ option =
+  begin match (u.elt, t.elt) with
+    | TRef r, TRef s ->
+      begin match (r.elt, s.elt) with
+        | RString, RString -> Some u
+        | RArray r_arr, RArray s_arr ->
+          begin match join_typ h r_arr s_arr with
+            | None -> None
+            | Some x -> Some (no_loc (TRef (no_loc (RArray x))))
+          end
+        | RClass r_class, RClass s_class ->
+          if extends h r_class s_class then Some t
+          else if extends h s_class r_class then Some u
+          else ref_join h
+            (no_loc (TRef (no_loc (RClass (lookup_interface r_class.elt h).sup))))
+            (no_loc (TRef (no_loc (RClass (lookup_interface s_class.elt h).sup))))
+          (*failwith "class not implemented"*)
+        | _ -> None
+      end
+    | TRef r, TNRef s ->
+      begin match ref_join h u (no_loc (TRef s)) with
+        | None -> None
+        | Some x ->
+          begin match x.elt with
+            | TRef tr -> Some (no_loc (TNRef tr))
+            | _ -> Some x
+          end
+      end
+    | TNRef r, TRef s ->
+      begin match ref_join h (no_loc (TRef r)) t with
+        | None -> None
+        | Some x ->
+          begin match x.elt with
+            | TRef tr -> Some (no_loc (TNRef tr))
+            | _ -> Some x
+          end
+      end
+    | TNRef r, TNRef s ->
+      begin match ref_join h (no_loc (TRef r)) (no_loc (TRef s)) with
+        | None -> None
+        | Some x ->
+          begin match x.elt with
+            | TRef tr -> Some (no_loc (TNRef tr))
+            | _ -> Some x
+          end
+      end
+    | _ -> join_typ h u t
+  end
+  
 
 (* lift the 'join' operation to a set of types ------------------------------ *)
 (* NOTE: monads would be nice here... :-)                                     *)
