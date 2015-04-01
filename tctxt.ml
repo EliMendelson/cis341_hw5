@@ -105,7 +105,7 @@ let rec extends (h:hierarchy) (c1:cid) (c2:cid) : bool =
   else try
     let c1_super = (lookup_interface sub_name h).sup in
     if super_name = c1_super.elt then true
-    else extends h c1 @@ no_loc c1_super.elt
+    else extends h (no_loc c1_super.elt) c2
   with Not_found -> false
 
 
@@ -136,8 +136,8 @@ let rec join_typ (h:hierarchy) (u:typ) (t:typ) : typ option =
             | Some x -> Some (no_loc (TRef (no_loc (RArray x))))
           end
         | RClass r_class, RClass s_class ->
-          if extends h r_class s_class then Some u
-          else if extends h s_class r_class then Some t
+          if extends h r_class s_class then Some t
+          else if extends h s_class r_class then Some u
           else join_typ h
             (no_loc (TRef (no_loc (RClass (lookup_interface r_class.elt h).sup))))
             (no_loc (TRef (no_loc (RClass (lookup_interface s_class.elt h).sup))))
