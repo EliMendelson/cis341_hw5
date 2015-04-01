@@ -559,14 +559,14 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
     let ret_id = gensym "newobjret" in
     let class_ty = cmp_typ (ast_class_typ cid) in
     (* TODO: calculate the size *)
-    let obj_size = Ll.Const 0L in
+    let obj_size = Ll.Const 1337L in
     let ctr_id = ctr_name cid.elt in
     let string_ty = cmp_typ ast_str in
     let args_l = (string_ty, Id newobj_id)::args_l in
     let stream =
       args_s >@
-      [I (newobj_id, Call(string_ty, Id "oat_malloc", [I64, obj_size]))] >@
-      [I ("", Call(Void, Id ctr_id, args_l))] >@
+      [I (newobj_id, Call(string_ty, Gid "oat_malloc", [I64, obj_size]))] >@
+      [I ("", Call(Void, Gid ctr_id, args_l))] >@
       [I (ret_id, Bitcast(string_ty, Id newobj_id, class_ty))] in
     (class_ty, Id ret_id, stream)
 
@@ -972,17 +972,25 @@ let cmp_ctr (h:Tctxt.hierarchy) (c:ctxt) (cid:id) (sup:id)
   let args = (ast_str, this_id)::args in
   let args_c, args_s, args_l = cmp_args c args in
   let sup_name = ctr_name sup.elt in
-  let sup_class = Tctxt.lookup_interface sup.elt h in
   let args_l2 = 
     List.map (fun (x,y) -> (x,Id y)) args_l in
   let this_sym = gensym "this" in
+  let this_obj = gensym "thisobj" in
   let class_ty = cmp_typ (ast_class_typ cid) in
   let this_loc, this_ty = lookup_local this_id.elt args_c in
+  let fields = cmp_fields h args_c cid this_sym flds in
+  let vsym = gensym "vtbl" in
+  let vname = vtbl_name cid.elt in
+  let vtyp = Ptr (class_named_ty cid.elt) in
 
   let stream = 
     args_s >@ 
     [I("", Call(Void, Gid sup_name, args_l2))] >@
-    [I(this_sym, Bitcast((cmp_typ this_ty), Id this_loc, class_ty))] >@
+    [I(this_obj, Load(Ptr (cmp_typ this_ty), Id this_loc))] >@
+    [I(this_sym, Bitcast(cmp_typ this_ty, Id this_obj, class_ty))] >@
+    fields >@
+    [I(vsym, Bitcast(class_ty, Id this_sym, Ptr vtyp))] >@
+    [I("", Store(vtyp,Gid vname,Id vsym))] >@
     [T(Ret(Void,None))] in
   let cfg, ll_globals = build_cfg stream in
   let fdecl = {
@@ -992,7 +1000,6 @@ let cmp_ctr (h:Tctxt.hierarchy) (c:ctxt) (cid:id) (sup:id)
   } in 
   let gid = ctr_name cid.elt in
   (gid, fdecl), ll_globals
-  (* failwith "HW5: cmp_ctr not implemented" *)
 
 
 let cmp_method h c cid sup {elt={rtyp; name; args; body}} =
