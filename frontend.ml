@@ -704,6 +704,11 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
            object pointer (if, for example, the method being invoked is 
            inherited and thus expects a 'this' argument of a different type). *)
         | p -> (* Must be a method invocation of the form p.m(es)  *)
+          let m_ty, obj_op, obj_path_str = cmp_path_exp h c p in
+          let m_status, (arg_typs, ret_ty) = lookup_method h m_ty f in
+          let args, args_str = cmp_args h c es arg_typs in
+          
+
           failwith "HW5: method invocation not implemented"
       end
     | _ -> failwith "Impossible: Compiler Error"
