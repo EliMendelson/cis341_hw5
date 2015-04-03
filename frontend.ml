@@ -729,7 +729,12 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
           let m_ty, obj_op, obj_path_str = cmp_path_exp h c p in
           let m_status, (arg_typs, ret_ty) = Tctxt.lookup_method h m_ty f.elt in
           let args, args_str = cmp_args h c es arg_typs in
-          
+          let obj_name =
+            begin match m_status with
+              | Tctxt.Extended
+              | Tctxt.Overridden -> failwith "Overridden method: not implemented"
+              | Tctxt.Inherited super_class -> failwith "Inherited method: not implemented"
+            end in
 
           failwith "HW5: method invocation not implemented"
       end
