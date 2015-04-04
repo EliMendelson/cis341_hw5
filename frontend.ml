@@ -727,8 +727,10 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
            inherited and thus expects a 'this' argument of a different type). *)
         | p -> (* Must be a method invocation of the form p.m(es)  *)
           let m_ty, obj_op, obj_path_str = cmp_path_exp h c p in
+          let obj_llty = cmp_typ m_ty in
           let m_status, (arg_typs, ret_typ) = Tctxt.lookup_method h m_ty f.elt in
           let args, args_str = cmp_args h c es arg_typs in
+          let args = (obj_llty,obj_op)::args in
           let obj_name =
             begin match m_status with
               | Tctxt.Extended
@@ -740,8 +742,10 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
               | Tctxt.Inherited super_class -> super_class 
             end in
           let arg_lltys, ret_llty = cmp_ftyp (arg_typs, ret_typ) in
+          let arg_lltys = obj_llty::arg_lltys in
           let vptr_sym = gensym "vptr" in
           let vt_sym = gensym "vtable" in
+          let mptr_sym = gensym "mptr" in
           let mth_sym = gensym "mth" in
           let mth_gep = gep_for_method h (no_loc obj_name) f in
           let retsym = gensym "callret" in 
@@ -749,9 +753,10 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
           (* TODO: add 'this' to method call *)
           let stream = 
             obj_path_str >@
-            [I(vptr_sym, Gep((cmp_typ m_ty), obj_op, gep_vtbl_ptr))] >@
-            [I(vt_sym, Load(Ptr (class_named_ty obj_name), Id vptr_sym))] >@
-            [I(mth_sym, Gep(Ptr (class_named_ty obj_name), Id vt_sym, mth_gep))] >@
+            [I(vptr_sym, Gep(obj_llty, obj_op, gep_vtbl_ptr))] >@
+            [I(vt_sym, Load(Ptr(Ptr (class_named_ty obj_name)), Id vptr_sym))] >@
+            [I(mptr_sym, Gep(Ptr (class_named_ty obj_name), Id vt_sym, mth_gep))] >@
+            [I(mth_sym, Load(Ptr(Ptr(Fun (arg_lltys,ret_llty))), Id mptr_sym))] >@
             args_str >@
             [I(retsym, Call(ret_llty, (Id mth_sym), args))]
           in
