@@ -730,8 +730,12 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
           let obj_llty = cmp_typ m_ty in
           let m_status, (arg_typs, ret_typ) = Tctxt.lookup_method h m_ty f.elt in
           let args, args_str = cmp_args h c es arg_typs in
-          let args = (obj_llty,obj_op)::args in
           let obj_name =
+            (match m_ty.elt with
+              | TRef {elt=(RClass {elt=cid})} -> cid
+              | _ -> failwith "cmp_call: cannot get class name"
+            ) in
+          let tgt_cid = 
             begin match m_status with
               | Tctxt.Extended
               | Tctxt.Overridden ->
@@ -740,16 +744,19 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
                   | _ -> failwith "cmp_call: not a class type"
                 )
               | Tctxt.Inherited super_class -> super_class 
-            end in
+            end in 
           let arg_lltys, ret_llty = cmp_ftyp (arg_typs, ret_typ) in
-          let arg_lltys = obj_llty::arg_lltys in
+          let tgt_llty = Ptr(object_named_ty tgt_cid) in
+          let arg_lltys = tgt_llty::arg_lltys in
           let vptr_sym = gensym "vptr" in
           let vt_sym = gensym "vtable" in
           let mptr_sym = gensym "mptr" in
           let mth_sym = gensym "mth" in
+          let thiscast_sym = gensym "thiscast" in
           let mth_gep = gep_for_method h (no_loc obj_name) f in
           let retsym = gensym "callret" in 
           let op = Id retsym in
+          let args = (tgt_llty,Id thiscast_sym)::args in
           (* TODO: add 'this' to method call *)
           let stream = 
             obj_path_str >@
@@ -758,6 +765,7 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
             [I(mptr_sym, Gep(Ptr (class_named_ty obj_name), Id vt_sym, mth_gep))] >@
             [I(mth_sym, Load(Ptr(Ptr(Fun (arg_lltys,ret_llty))), Id mptr_sym))] >@
             args_str >@
+            [I(thiscast_sym, Bitcast(obj_llty,obj_op,tgt_llty))] >@
             [I(retsym, Call(ret_llty, (Id mth_sym), args))]
           in
           (ret_typ, op, stream)
