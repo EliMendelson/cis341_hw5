@@ -551,7 +551,7 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
     let args_l, args_s = List.fold_left
       (fun (l,s) x ->
         let llty, llop, stream = cmp_exp h c x in
-        ((llty,llop)::l, s >@ stream)
+        ([(llty,llop)] >@ l, s >@ stream)
       ) 
       ([], [])
       es in
@@ -727,16 +727,35 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
            inherited and thus expects a 'this' argument of a different type). *)
         | p -> (* Must be a method invocation of the form p.m(es)  *)
           let m_ty, obj_op, obj_path_str = cmp_path_exp h c p in
-          let m_status, (arg_typs, ret_ty) = Tctxt.lookup_method h m_ty f.elt in
+          let m_status, (arg_typs, ret_typ) = Tctxt.lookup_method h m_ty f.elt in
           let args, args_str = cmp_args h c es arg_typs in
           let obj_name =
             begin match m_status with
               | Tctxt.Extended
-              | Tctxt.Overridden -> failwith "Overridden method: not implemented"
-              | Tctxt.Inherited super_class -> failwith "Inherited method: not implemented"
+              | Tctxt.Overridden ->
+                ( match m_ty with
+                  | {elt=TRef {elt=(RClass {elt=cid})} } -> cid 
+                  | _ -> failwith "cmp_call: not a class type"
+                )
+              | Tctxt.Inherited super_class -> super_class 
             end in
-
-          failwith "HW5: method invocation not implemented"
+          let arg_lltys, ret_llty = cmp_ftyp (arg_typs, ret_typ) in
+          let vptr_sym = gensym "vptr" in
+          let vt_sym = gensym "vtable" in
+          let mth_sym = gensym "mth" in
+          let mth_gep = gep_for_method h (no_loc obj_name) f in
+          let retsym = gensym "callret" in 
+          let op = Id retsym in
+          (* TODO: add 'this' to method call *)
+          let stream = 
+            obj_path_str >@
+            [I(vptr_sym, Gep((cmp_typ m_ty), obj_op, gep_vtbl_ptr))] >@
+            [I(vt_sym, Load(Ptr (class_named_ty obj_name), Id vptr_sym))] >@
+            [I(mth_sym, Gep(Ptr (class_named_ty obj_name), Id vt_sym, mth_gep))] >@
+            args_str >@
+            [I(retsym, Call(ret_llty, (Id mth_sym), args))]
+          in
+          (ret_typ, op, stream)
       end
     | _ -> failwith "Impossible: Compiler Error"
   end
@@ -989,14 +1008,22 @@ let cmp_ctr (h:Tctxt.hierarchy) (c:ctxt) (cid:id) (sup:id)
   let class_ty = cmp_typ (ast_class_typ cid) in
   let this_loc, this_ty = lookup_local this_id.elt args_c in
   let fields = cmp_fields h args_c cid this_sym flds in
+  let args_sup, sup_s = 
+    List.fold_left 
+      (fun (a,s) x -> 
+        let ty,op,st = cmp_exp h args_c x in
+        ([(ty,op)] >@ a, st >@ s)) 
+      ([((cmp_typ this_ty), Id this_obj)],[])
+      sups in
   let vsym = gensym "vtbl" in
   let vname = vtbl_name cid.elt in
   let vtyp = Ptr (class_named_ty cid.elt) in
 
   let stream = 
     args_s >@ 
-    [I("", Call(Void, Gid sup_name, args_l2))] >@
     [I(this_obj, Load(Ptr (cmp_typ this_ty), Id this_loc))] >@
+    sup_s >@
+    [I("", Call(Void, Gid sup_name, args_sup))] >@
     [I(this_sym, Bitcast(cmp_typ this_ty, Id this_obj, class_ty))] >@
     fields >@
     [I(vsym, Bitcast(class_ty, Id this_sym, Ptr vtyp))] >@
