@@ -892,7 +892,39 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
 
       - Note: I8* is a 'compatible' type for all of these comparisons.         *)
   | Ast.Cast(ty, id, e, st1, st2) ->
-    failwith "HW5: Cast not implemented"
+    (****The stream is probably not correct: it may need to compile id****)
+    assert (ty <> e.ext);
+    Tctxt.assert_typ_subtype h ty e.ext;
+    try lookup_local id.elt c; failwith "variable already in context"
+    with Not_found ->
+    begin match ty.elt with
+      | TNull -> c, (if e.ext = (no_loc TNull) then
+                  cmp_block h (add_local c id (id.elt, ty)) rt st1 
+                else cmp_block h c rt st2)
+      | TRef r ->
+        begin match r.elt with
+          | RString -> c, (if e.ext = (no_loc TNull) then
+                        cmp_block h (c) rt st2 else cmp_block h (c) rt st1)
+          | RArray arr_type -> c, (if e.ext = (no_loc TNull) then
+                        cmp_block h (c) rt st2
+                        else cmp_block h (add_local c id (id.elt, ty)) rt st1)
+          | RClass class_id ->
+            if e.ext = (no_loc TNull) then
+                (c, cmp_block h (add_local c id (id.elt, ty)) rt st1)
+            else failwith "vtable crawl unimplemented"
+              (*Loop to crawl up vtbls looking for C*)
+        end
+      | TNRef r ->
+        begin match r.elt with
+          | RClass class_id ->
+            if e.ext = (no_loc TNull) then
+                (c, cmp_block h (add_local c id (id.elt, ty)) rt st1)
+            else failwith "vtable crawl unimplemented"
+              (*Loop to crawl up vtbls looking for C*)
+          | _ -> failwith "unsure if this is valid case of downcast"
+        end
+      | _ -> failwith "cannot cast this type"
+    end
 
 (* compile a block ---------------------------------------------------------- *)
 and cmp_block h (c:ctxt) (rt:rtyp) (stmts:t Ast.block) : stream =
