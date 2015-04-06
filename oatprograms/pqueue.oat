@@ -1,0 +1,103 @@
+class Integer <: Object {
+	new (int i)() {
+		int i = i;
+	}
+}
+
+class ListNode <: Object {
+	new (int x, ListNode? next)() {
+		Integer x = new Integer(x);
+		ListNode? next = next;
+	}
+}
+
+class Queue <: Object {
+	new ()() {
+		ListNode? head = null;
+		ListNode? tail = null;
+	}
+	void push(int x) {
+		if? (ListNode t = this.tail) {
+			this.tail = new ListNode(x, null);
+			t.next = this.tail;
+		} else {
+			this.tail = new ListNode(x, null);
+			this.head = this.tail;
+		}
+    return;
+	}
+	Integer? pop() {
+		if? (ListNode h = this.head) {
+			Integer ret = h.x;
+			this.head = h.next;
+			if? (ListNode n = this.head) {
+			} else {
+				this.tail = null;
+			}
+			return ret;
+		} else {
+			return null;
+		}
+	}
+}
+
+class PriorityQueue <: Queue {
+	new ()() {
+	}
+	void push(int x) {
+    if? (ListNode h = this.head) {
+      ListNode cur = h;
+      bool notdone = true;
+      if (h.x.i <= x) {
+        this.head = new ListNode(x,h);
+        notdone = false;
+      }
+      while (notdone) {
+        if? (ListNode n = cur.next) {
+          if (n.x.i <= x) {
+            cur.next = new ListNode(x,n);
+            notdone = false;
+          } else {
+            cur = n;
+          }
+        } else {
+          cur.next = new ListNode(x, null);
+          this.tail = cur.next;
+          notdone = false;
+        }
+      }
+    } else {
+      super.push(x);
+    }
+	}
+}
+
+int program(int argc, string[] argv) {
+	Queue q = new Queue();
+	q.push(3);
+	q.push(5);
+	q.push(7);
+  q.push(9);
+	Integer? t = q.pop();
+  t = q.pop();
+  int ret = 0;
+  if? (Integer x = t) {
+    ret = x.i;
+  } else {
+    ret = -1;
+  }
+
+  PriorityQueue pq = new PriorityQueue();
+  pq.push(3);
+  pq.push(5);
+  pq.push(9);
+  pq.push(7);
+  t = pq.pop();
+  t = pq.pop();
+  if? (Integer x = t) {
+    ret = ret + x.i;
+  } else {
+    ret = ret - 1;
+  }
+	return ret;
+}
