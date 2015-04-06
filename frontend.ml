@@ -570,8 +570,6 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
       [I (ret_id, Bitcast(string_ty, Id newobj_id, class_ty))] in
     (class_ty, Id ret_id, stream)
 
-    (*failwith "HW5: NewObj case not implemented"*)
-
 
 (* length of array ---------------------------------------------------------- *)
 (* This is a polymorphic global function, so we need to special case its
@@ -649,6 +647,7 @@ and cmp_path_lhs h (c:ctxt) (p:t path) : Ast.typ * Ll.operand * stream =
 (* puts in the appropriate bitcasts to handle subtyping                       *)
 and cmp_args (h:Tctxt.hierarchy) (c:ctxt) (es:(t exp) list) (ts:(typ list)) :
   (Ll.ty * Ll.operand) list * stream=
+  Printf.printf "%d %d\n" (List.length es) (List.length ts);
   let (args, args_code) = List.fold_left2
       (fun (args,code) e t ->
          let (arg_t, arg_op, arg_code) = cmp_exp h c e in
@@ -703,7 +702,17 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
              - the cmp_invocation helper can be used here                     *)
         | [{elt=Field({elt="super"});ext=sup}] ->
           (* An invocation of the super class' method. *)
-          failwith "HW5: call 'super' method not implemented"
+          let _, (arg_typs, ret_typ) = Tctxt.lookup_method h sup f.elt in
+          let cname = 
+            begin match sup with
+            | {elt=TRef {elt=RClass cid}} -> cid
+            | _ -> failwith "cmp_call: couldn't get super name"
+            end in
+          let uid,this_typ = lookup_local "this" c in
+          let fname = method_name cname.elt f.elt in
+          let args = (ast_this_var this_typ)::es in
+          let ftyp = (sup::arg_typs), ret_typ in
+          cmp_invocation h c (Gid fname) args ftyp
 
         (* method invocation ------------------------------------------------ *)
         (* Implements dynamic dispatch.
@@ -757,7 +766,6 @@ and cmp_call h c prefix acc : Ast.rtyp * Ll.operand * stream =
           let retsym = gensym "callret" in 
           let op = Id retsym in
           let args = (tgt_llty,Id thiscast_sym)::args in
-          (* TODO: add 'this' to method call *)
           let stream = 
             obj_path_str >@
             [I(vptr_sym, Gep(obj_llty, obj_op, gep_vtbl_ptr))] >@
