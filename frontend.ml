@@ -558,8 +558,9 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
     let newobj_id = gensym "newobj" in
     let ret_id = gensym "newobjret" in
     let class_ty = cmp_typ (ast_class_typ cid) in
-    (* TODO: calculate the size *)
-    let obj_size = Ll.Const 1337L in
+    let flds = (Tctxt.lookup_interface cid.elt h).flds in
+    let n_flds = 8 + ((List.length flds) * 8) in
+    let obj_size = Ll.Const (Int64.of_int n_flds) in
     let ctr_id = ctr_name cid.elt in
     let string_ty = cmp_typ ast_str in
     let ts, rt = Tctxt.lookup_ctr_ftyp h cid.elt in
