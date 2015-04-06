@@ -1,0 +1,138 @@
+class Instrument <: Object {
+    new ()() { }
+
+    void make_noise() {
+        print_string("A cacophony of sound!");
+        return;
+    }
+
+    void tap_foot() {
+        print_string("Tap.");
+        return;
+    }
+}
+
+class Woodwind <: Instrument {
+    new (string k)() {
+        string key = k;
+    }
+
+    void make_noise() {
+        print_string("Squak!");
+        return;
+    }
+
+    void clear_spit() {
+        print_string("Ssshhhp.");
+        return;
+    }
+
+    void print_key() {
+        print_string(key);
+        return;
+    }
+}
+
+class Flute <: Woodwind {
+    new ()("C") { }
+}
+
+class Clarinet <: Woodwind {
+    new ()("Bb") { }
+}
+
+class Oboe <: Woodwind {
+    new ()("C") { }
+}
+
+class Saxophone <: Woodwind {
+    new ()("Eb") { }
+}
+
+class Bassoon <: Woodwind {
+    new ()("C") { }
+}
+
+class Brass <: Instrument {
+    new (string k)() {
+        string key = k;
+    }
+
+    void make_noise() {
+        print_string("Splat!");
+        return;
+    }
+
+    void clear_spit() {
+        print_string("Fffffff.");
+        return;
+    }
+
+    void print_key() {
+        print_string(key);
+        return;
+    }
+}
+
+class Trumpet <: Brass {
+    new ()("Bb") { }
+}
+
+class Horn <: Brass {
+    new ()("F") { }
+}
+
+class Trombone <: Brass {
+    new ()("C") { }
+}
+
+class Tuba <: Brass {
+    new ()("C") { }
+}
+
+int program (int argc, string[] argv) {
+    Instrument[] orchestra = new Instrument[24]{ i => new Instrument() };
+    for (int i = 0; i < 24; i = i + 1;) {
+        if (i < 2) {
+            orchestra[i] = new Flute();
+        } else if (i < 6) {
+            orchestra[i] = new Clarinet();
+        } else if (i < 7) {
+            orchestra[i] = new Oboe();
+        } else if (i < 9) {
+            orchestra[i] = new Saxophone();
+        } else if (i < 10) {
+            orchestra[i] = new Bassoon();
+        } else if (i < 14) {
+            orchestra[i] = new Trumpet();
+        } else if (i < 18) {
+            orchestra[i] = new Horn();
+        } else if (i < 22) {
+            orchestra[i] = new Trombone();
+        } else if (i < 24) {
+            orchestra[i] = new Tuba();
+        }
+    }
+
+    for (int i = 0; i < 24; i = i + 1;) {
+        orchestra[i].make_noise();
+        print_string(" ");
+        if? (Woodwind w = orchestra[i]) {
+            w.clear_spit();
+            print_string(" ");
+            w.tap_foot();
+        }
+        print_string("\n");
+    }
+
+    print_string("\n");
+
+    for (int i = 0; i < 24; i = i + 1;) {
+        if? (Brass b = orchestra[i]) {
+            b.clear_spit();
+            print_string(" ");
+        }
+    }
+
+    return 0;
+}

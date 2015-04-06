@@ -1,0 +1,60 @@
+class List <: Object {
+  new (Object head, List? tail)() {
+    Object hd = head;
+    List? tl = tail;
+  }  
+  bool isEmpty() {
+    return this.tl == null;
+  }
+}
+
+class Integer <: Object {
+  new (int i)() {
+    int i = i;
+  }
+}
+
+class Fold <: Object {
+  new ()(){}
+  Object call(Object elem, Object acc){
+    return acc;
+  }
+}
+
+class Sum <: Fold {
+  new ()(){}
+  Object call(Object elem, Object acc) {
+    if? (Integer e = elem) {
+        if? (Integer a = acc) {
+          return new Integer(e.i + a.i);
+        }
+    }
+    return acc;
+  }
+}
+
+Object fold(Fold f, List? ml, Object b) {
+  if? (List l = ml) {
+    return f.call(l.hd, fold(f, l.tl, b));
+  } else {
+    return b;
+  }
+}
+
+List? arr_to_list(int[] arr) {
+  List? l = null;
+  for(int i = 0; i < length_of_array(arr); i = i + 1;) {
+    l = new List(new Integer(arr[i]), l);
+  }
+  return l;
+}
+
+int program(int argc, string[] argv) {
+  int[] arr = new int[10]{ i => i };
+  List? l = arr_to_list(arr);
+  Object result = fold(new Sum(), l, new Integer(0));
+  if? (Integer x = result) {
+    return x.i;
+  }
+  return 0;
+}

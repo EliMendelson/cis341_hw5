@@ -548,20 +548,23 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
      - compile the arguments to the constructor and call the constructor
      - bitcast the object pointer to the appropriate object type              *)
   | Ast.NewObj(cid, es) ->
-    let args_l, args_s = List.fold_left
+    (*let args_l, args_s = List.fold_left
       (fun (l,s) x ->
         let llty, llop, stream = cmp_exp h c x in
         ([(llty,llop)] >@ l, s >@ stream)
       ) 
       ([], [])
-      es in
+      es in *)
     let newobj_id = gensym "newobj" in
     let ret_id = gensym "newobjret" in
     let class_ty = cmp_typ (ast_class_typ cid) in
-    (* TODO: calculate the size *)
-    let obj_size = Ll.Const 1337L in
+    let flds = (Tctxt.lookup_interface cid.elt h).flds in
+    let n_flds = 8 + ((List.length flds) * 8) in
+    let obj_size = Ll.Const (Int64.of_int n_flds) in
     let ctr_id = ctr_name cid.elt in
     let string_ty = cmp_typ ast_str in
+    let ts, rt = Tctxt.lookup_ctr_ftyp h cid.elt in
+    let args_l, args_s = cmp_args h c es ts in
     let args_l = (string_ty, Id newobj_id)::args_l in
     let stream =
       args_s >@
@@ -647,7 +650,6 @@ and cmp_path_lhs h (c:ctxt) (p:t path) : Ast.typ * Ll.operand * stream =
 (* puts in the appropriate bitcasts to handle subtyping                       *)
 and cmp_args (h:Tctxt.hierarchy) (c:ctxt) (es:(t exp) list) (ts:(typ list)) :
   (Ll.ty * Ll.operand) list * stream=
-  Printf.printf "%d %d\n" (List.length es) (List.length ts);
   let (args, args_code) = List.fold_left2
       (fun (args,code) e t ->
          let (arg_t, arg_op, arg_code) = cmp_exp h c e in
@@ -918,40 +920,78 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
     Tctxt.assert_typ_subtype h ty e.ext;
     try lookup_local id.elt c; failwith "variable already in context"
     with Not_found ->
-    let new_var = [I (gensym "x_var", Alloca(Ptr I8))] in
-    begin match ty.elt with
-      | TNull -> c, (if e.ext = (no_loc TNull) then
-                  new_var >@ cmp_block h (add_local c id (id.elt, ty)) rt st1 
-                else cmp_block h c rt st2)
-      | TRef r ->
-        begin match r.elt with
-          | RString -> c, (if e.ext = (no_loc TNull) then
-                        cmp_block h (c) rt st2
-                        else
-                        new_var >@ cmp_block h (c) rt st1)
-          | RArray arr_type -> c, (if e.ext = (no_loc TNull) then
-                        cmp_block h (c) rt st2
-                        else
-                        new_var >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
-          | RClass class_id ->
-            if e.ext = (no_loc TNull) then
-                (c, new_var >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
-            else
+      let null_cmp = gensym "nullcmp" in
+      let lbl_st1, lbl_st2, lbl_end = gensym "st1", gensym "st2", gensym "end" in
+      let lbl_vinit = gensym "vinit" in
+      let lbl_loop, lbl_chkobj = gensym "loop", gensym "chkobj" in
+      let tgt_id, tgt_loc = gensym "tgt", gensym "tgtloc" in
+      let lbl_null,lbl_non_null = 
+        begin match ty.elt with
+        | TNull -> lbl_st1, lbl_st2
+        | TRef r ->
+          begin match r.elt with
+          | RString
+          | RArray _ -> lbl_st2, lbl_st1
+          | RClass _ -> lbl_st2, lbl_vinit
+          end
+        | TNRef r -> lbl_st1, lbl_vinit
+        | _ -> failwith "invalid cast type"
+        end in
 
-            failwith "vtable crawl unimplemented"
-              (*Loop to crawl up vtbls looking for C*)
+      let e_ty, e_op, e_s = cmp_exp h c e in
+      let ppi8 = Ptr(Ptr(I8)) in
+      c, 
+      e_s >@
+      [I (null_cmp, Icmp (Eq, e_ty, e_op, Null))] >@
+      [T (Cbr ((Id null_cmp), lbl_null, lbl_non_null))] >@
+      (
+        begin match ty.elt with
+        | TRef {elt=RClass class_id}
+        | TNRef {elt=RClass class_id} ->
+          let vname_id, obj_id = gensym "vname", gensym "obj" in
+          let vptr_loc, vptr_id = gensym "vloc", gensym "vptr" in
+          let cmp1, cmp2 = gensym "cmp1", gensym "cmp2" in
+          let lbl_cmp2, lbl_rec = gensym "cmplbl", gensym "rec" in
+          let sup_id = gensym "sup" in
+          let vc_id, vc2_id = gensym "vc", gensym "vc2" in
+
+          let vname = vtbl_name class_id.elt in
+          let vobj = vtbl_name "Object" in
+          let vname_ptr_ty = Ptr(class_named_ty class_id.elt) in
+          let obj_ptr_ty = Ptr(class_named_ty "Object") in
+
+          [L lbl_vinit] >@
+          [I (vname_id, Bitcast(vname_ptr_ty, (Gid vname), Ptr(I8)))] >@
+          [I (obj_id, Bitcast(obj_ptr_ty, (Gid vobj), Ptr(I8)))] >@
+          [I (vptr_loc, Alloca(ppi8))] >@
+          [I (vptr_id, Bitcast(e_ty, e_op, ppi8))] >@
+          [I ("", Store(ppi8, (Id vptr_id), (Id vptr_loc)))] >@
+          [T (Br lbl_loop)] >@
+          [L lbl_loop] >@
+          [I (vc2_id, Load(Ptr(ppi8), Id vptr_loc))] >@
+          [I (vc_id, Load(ppi8, Id vc2_id))] >@
+          [I (cmp1, Icmp(Eq, Ptr(I8), (Id vc_id), (Id vname_id)))] >@
+          [T (Cbr((Id cmp1), lbl_st1, lbl_cmp2))] >@
+          [L lbl_cmp2] >@
+          [I (cmp2, Icmp(Eq, Ptr(I8), (Id vc_id), (Id obj_id)))] >@
+          [T (Cbr((Id cmp2), lbl_st2, lbl_rec))] >@
+          [L lbl_rec] >@
+          [I (sup_id, Bitcast(Ptr(I8), (Id vc_id), ppi8))] >@
+          [I ("", Store(ppi8, (Id sup_id), (Id vptr_loc)))] >@
+          [T (Br lbl_loop)]
+        | _ -> []
         end
-      | TNRef r ->
-        begin match r.elt with
-          | RClass class_id ->
-            if e.ext = (no_loc TNull) then
-                (c, new_var >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
-            else failwith "vtable crawl unimplemented"
-              (*Loop to crawl up vtbls looking for C*)
-          | _ -> failwith "unsure if this is valid case of downcast"
-        end
-      | _ -> failwith "cannot cast this type"
-    end
+      ) >@
+      [L lbl_st1] >@
+      [I (tgt_loc, Alloca(e_ty))] >@
+      [I ("", Store(e_ty, e_op, Id tgt_loc))] >@
+      [I (tgt_id, Bitcast(Ptr(e_ty), (Id tgt_loc), Ptr(cmp_typ ty)))] >@
+      (cmp_block h (add_local c id (tgt_id, ty)) rt st1) >@
+      [T (Br lbl_end)] >@
+      [L lbl_st2] >@
+      (cmp_block h c rt st2) >@
+      [T (Br lbl_end)] >@
+      [L lbl_end]
 
 (* compile a block ---------------------------------------------------------- *)
 and cmp_block h (c:ctxt) (rt:rtyp) (stmts:t Ast.block) : stream =
@@ -1060,8 +1100,6 @@ let cmp_ctr (h:Tctxt.hierarchy) (c:ctxt) (cid:id) (sup:id)
   let args = (ast_str, this_id)::args in
   let args_c, args_s, args_l = cmp_args c args in
   let sup_name = ctr_name sup.elt in
-  let args_l2 = 
-    List.map (fun (x,y) -> (x,Id y)) args_l in
   let this_sym = gensym "this" in
   let this_obj = gensym "thisobj" in
   let class_ty = cmp_typ (ast_class_typ cid) in
