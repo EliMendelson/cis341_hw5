@@ -953,10 +953,12 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
           let lbl_cmp2, lbl_rec = gensym "cmplbl", gensym "rec" in
           let sup_id = gensym "sup" in
           let vc_id, vc2_id = gensym "vc", gensym "vc2" in
+
           let vname = vtbl_name class_id.elt in
           let vobj = vtbl_name "Object" in
           let vname_ptr_ty = Ptr(class_named_ty class_id.elt) in
           let obj_ptr_ty = Ptr(class_named_ty "Object") in
+
           [L lbl_vinit] >@
           [I (vname_id, Bitcast(vname_ptr_ty, (Gid vname), Ptr(I8)))] >@
           [I (obj_id, Bitcast(obj_ptr_ty, (Gid vobj), Ptr(I8)))] >@

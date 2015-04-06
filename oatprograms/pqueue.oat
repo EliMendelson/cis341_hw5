@@ -69,6 +69,7 @@ class PriorityQueue <: Queue {
     } else {
       super.push(x);
     }
+    return;
 	}
 }
 
