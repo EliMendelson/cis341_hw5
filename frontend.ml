@@ -548,13 +548,13 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
      - compile the arguments to the constructor and call the constructor
      - bitcast the object pointer to the appropriate object type              *)
   | Ast.NewObj(cid, es) ->
-    let args_l, args_s = List.fold_left
+    (*let args_l, args_s = List.fold_left
       (fun (l,s) x ->
         let llty, llop, stream = cmp_exp h c x in
         ([(llty,llop)] >@ l, s >@ stream)
       ) 
       ([], [])
-      es in
+      es in *)
     let newobj_id = gensym "newobj" in
     let ret_id = gensym "newobjret" in
     let class_ty = cmp_typ (ast_class_typ cid) in
@@ -562,6 +562,8 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
     let obj_size = Ll.Const 1337L in
     let ctr_id = ctr_name cid.elt in
     let string_ty = cmp_typ ast_str in
+    let ts, rt = Tctxt.lookup_ctr_ftyp h cid.elt in
+    let args_l, args_s = cmp_args h c es ts in
     let args_l = (string_ty, Id newobj_id)::args_l in
     let stream =
       args_s >@
@@ -647,7 +649,6 @@ and cmp_path_lhs h (c:ctxt) (p:t path) : Ast.typ * Ll.operand * stream =
 (* puts in the appropriate bitcasts to handle subtyping                       *)
 and cmp_args (h:Tctxt.hierarchy) (c:ctxt) (es:(t exp) list) (ts:(typ list)) :
   (Ll.ty * Ll.operand) list * stream=
-  Printf.printf "%d %d\n" (List.length es) (List.length ts);
   let (args, args_code) = List.fold_left2
       (fun (args,code) e t ->
          let (arg_t, arg_op, arg_code) = cmp_exp h c e in
@@ -943,8 +944,62 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
                 let new_var = gensym "x_var" in
                 (c, [I (new_var, Alloca(Void))] >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
             else
+              let loop_lbl = gensym "loop" in
+              let st1_lbl = gensym "st1" in
+              let cmp2_lbl = gensym "cmp" in
+              let rec_lbl = gensym "rec" in
+              let st2_lbl = gensym "st2" in
+              let vptr_loc = gensym "vloc" in
+              let vptr_id = gensym "vt" in
+              let vc_id = gensym "vc" in
+              let vc2_id = gensym "vc2" in
+              let sup_id = gensym "sup" in
+              let cmp1 = gensym "cmp1" in
+              let cmp2 = gensym "cmp2" in
+              let end_lbl = gensym "end" in
+              let vname_id = gensym "vname" in
+              let vobj_id = gensym "vobj" in
+              let tgt_id = gensym "tgt" in
+              let tgt_loc = gensym "tgtloc" in
 
-            failwith "vtable crawl unimplemented"
+              let e_ty, e_op, e_s = cmp_exp h c e in
+              let ppi8 = Ptr(Ptr(I8)) in
+              let vname = vtbl_name class_id.elt in
+              let vobj = vtbl_name "Object" in
+              let vname_ptr_ty = Ptr(class_named_ty class_id.elt) in
+              let vobj_ptr_ty = Ptr(class_named_ty "Object") in
+              let stream = 
+                e_s >@
+                [I (vptr_loc, Alloca(ppi8))] >@
+                [I (vptr_id, Bitcast(e_ty, e_op, ppi8))] >@
+                [I (vname_id, Bitcast(vname_ptr_ty, (Gid vname), Ptr(I8)))] >@
+                [I (vobj_id, Bitcast(vobj_ptr_ty, (Gid vobj), Ptr(I8)))] >@
+                [I ("", Store(ppi8, (Id vptr_id), (Id vptr_loc)))] >@
+                [T (Br loop_lbl)] >@
+                [L loop_lbl] >@
+                [I (vc2_id, Load(Ptr(ppi8), Id vptr_loc))] >@
+                [I (vc_id, Load(ppi8, Id vc2_id))] >@
+                [I (cmp1, Icmp(Eq, Ptr(I8), (Id vc_id), (Id vname_id)))] >@
+                [T (Cbr((Id cmp1), st1_lbl, cmp2_lbl))] >@
+                [L cmp2_lbl] >@
+                [I (cmp2, Icmp(Eq, Ptr(I8), (Id vc_id), (Id vobj_id)))] >@
+                [T (Cbr((Id cmp2), st2_lbl, rec_lbl))] >@
+                [L rec_lbl] >@
+                [I (sup_id, Bitcast(Ptr(I8), (Id vc_id), ppi8))] >@
+                [I ("", Store(ppi8, (Id sup_id), (Id vptr_loc)))] >@
+                [T (Br loop_lbl)] >@
+                [L st1_lbl] >@
+                [I (tgt_loc, Alloca(e_ty))] >@
+                [I ("", Store(e_ty, e_op, Id tgt_loc))] >@
+                [I (tgt_id, Bitcast(Ptr(e_ty), (Id tgt_loc), Ptr(cmp_typ ty)))] >@
+                (cmp_block h (add_local c id (tgt_id, ty)) rt st1) >@
+                [T (Br end_lbl)] >@
+                [L st2_lbl] >@
+                (cmp_block h c rt st2) >@
+                [T (Br end_lbl)] >@
+                [L end_lbl]
+              in
+              (c, stream)
               (*Loop to crawl up vtbls looking for C*)
         end
       | TNRef r ->
