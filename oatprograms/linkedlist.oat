@@ -1,0 +1,66 @@
+class LLNode <: Object {
+  new(int x)() {
+    int val = x;
+    LLNode? next = null;
+  }
+
+  void setNext(LLNode? n) {
+    this.next = n;
+    return;
+  }
+
+  LLNode? getNext() {
+    return this.next;
+  }
+}
+
+class LinkedList <: Object {
+  new()() {
+    int size = 0;
+    LLNode? start = null;
+    LLNode? last = null;
+  }
+
+  void append(LLNode? node) {
+    if? (LLNode n = node) {
+      if? (LLNode l = this.last) {
+        l.setNext(n);
+        this.last = n;
+        this.size = this.size + 1;
+      } else {
+        this.start = n;
+        this.last = n;
+        this.size = 1;
+      }
+    }
+    return;
+  }
+
+  void print() {
+    if? (LLNode cur = start) {
+      for (int i = 0; i < size; i = i + 1;) {
+        print_int(cur.val);
+        LLNode? next = cur.getNext();
+        if? (LLNode n = next) {
+          cur = n;
+        }
+      }
+    }
+    return;
+  }
+}
+
+int program(int argc, string[] argv) {
+  LLNode? one = new LLNode(1);
+  LLNode? two = new LLNode(2);
+  LLNode? three = new LLNode(3);
+
+  LinkedList ll = new LinkedList();
+  ll.append(one);
+  ll.append(two);
+  ll.append(three);
+
+  ll.print();
+
+  return 0;
+}

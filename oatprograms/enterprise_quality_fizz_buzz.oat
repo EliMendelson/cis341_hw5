@@ -1,0 +1,76 @@
+class ModuloImpl <: Object {
+  new(int myModuloDivisor)() {int myModuloDivisor = myModuloDivisor;}
+
+  int getModuloResult (int numberToModularize) {
+    int result = 0;
+    if (numberToModularize < this.myModuloDivisor) {
+      result = numberToModularize;
+    }
+    if (numberToModularize > this.myModuloDivisor) {
+      result = this.getModuloResult(numberToModularize - this.myModuloDivisor);
+    }
+    return result;
+  }
+
+}
+
+class ModuloFactory <: Object {
+
+  new ()() {}
+
+  ModuloImpl getModuloImpl (int myModuloDivisor) {
+    return new ModuloImpl(myModuloDivisor);
+  }
+}
+
+class FizzBuzzPrinterManagerImpl <: Object {
+  new ()() {
+    ModuloFactory moduloFactory = new ModuloFactory();
+  }
+
+  void doPrint (int numToFizzBuzzPrint) {
+    ModuloImpl threeModuloImpl = this.moduloFactory.getModuloImpl(3);
+    ModuloImpl fiveModuloImpl = this.moduloFactory.getModuloImpl(5);
+    ModuloImpl fifteenModuloImpl = this.moduloFactory.getModuloImpl(15);
+    bool isDivisibleBy15 = fifteenModuloImpl.getModuloResult(numToFizzBuzzPrint) == 0;
+    bool isDivisibleBy5 = fiveModuloImpl.getModuloResult(numToFizzBuzzPrint) == 0;
+    bool isDivisibleBy3 = threeModuloImpl.getModuloResult(numToFizzBuzzPrint) == 0;
+
+    if (isDivisibleBy15) {
+      print_string ("Fizzbuzz");
+    }
+    if (isDivisibleBy5 & (isDivisibleBy15 == false)) {
+      print_string ("Buzz");
+    } 
+    if (isDivisibleBy3 & (isDivisibleBy15 == false)) {
+      print_string ("Fizz");
+    }
+    if ((isDivisibleBy15 == false) & (isDivisibleBy5 == false) & (isDivisibleBy3 == false)) {
+      print_string (string_of_int (numToFizzBuzzPrint));
+    }
+    return;
+  }
+}
+
+class FizzBuzzerImpl <: Object {
+  new (int highestNumberDesiredToFizzBuzzPrint) () {
+    int highestNumberDesiredToFizzBuzzPrint = highestNumberDesiredToFizzBuzzPrint;
+    FizzBuzzPrinterManagerImpl fizzBuzzPrinterManagerImpl = new FizzBuzzPrinterManagerImpl();
+  }
+
+  void performFizzBuzz() {
+
+    for (int indexOfFizzBuzz = 1; indexOfFizzBuzz <= this.highestNumberDesiredToFizzBuzzPrint; indexOfFizzBuzz = indexOfFizzBuzz + 1;) {
+      this.fizzBuzzPrinterManagerImpl.doPrint( indexOfFizzBuzz );
+    }
+
+    return;
+  }
+}
+
+int program (int argc, string[] argv) {
+	FizzBuzzerImpl fizzBuzzerImpl = new FizzBuzzerImpl(20);
+  fizzBuzzerImpl.performFizzBuzz();
+
+	return 0;
+}
