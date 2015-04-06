@@ -920,26 +920,39 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
     with Not_found ->
     begin match ty.elt with
       | TNull -> c, (if e.ext = (no_loc TNull) then
+                  let new_var = gensym "x_var" in
+                  [I (new_var, Alloca(Void))] >@
                   cmp_block h (add_local c id (id.elt, ty)) rt st1 
                 else cmp_block h c rt st2)
       | TRef r ->
         begin match r.elt with
           | RString -> c, (if e.ext = (no_loc TNull) then
-                        cmp_block h (c) rt st2 else cmp_block h (c) rt st1)
+                        cmp_block h (c) rt st2
+                        else
+                        let new_string = gensym "x_str" in
+                        [I (new_string, Alloca(Ptr I8))] >@
+                        cmp_block h (c) rt st1)
           | RArray arr_type -> c, (if e.ext = (no_loc TNull) then
                         cmp_block h (c) rt st2
-                        else cmp_block h (add_local c id (id.elt, ty)) rt st1)
+                        else
+                        let new_arr = gensym "x_arr" in
+                        [I (new_arr, Alloca(Ptr I8))] >@
+                        cmp_block h (add_local c id (id.elt, ty)) rt st1)
           | RClass class_id ->
             if e.ext = (no_loc TNull) then
-                (c, cmp_block h (add_local c id (id.elt, ty)) rt st1)
-            else failwith "vtable crawl unimplemented"
+                let new_var = gensym "x_var" in
+                (c, [I (new_var, Alloca(Void))] >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
+            else
+
+            failwith "vtable crawl unimplemented"
               (*Loop to crawl up vtbls looking for C*)
         end
       | TNRef r ->
         begin match r.elt with
           | RClass class_id ->
             if e.ext = (no_loc TNull) then
-                (c, cmp_block h (add_local c id (id.elt, ty)) rt st1)
+                let new_var = gensym "x_var" in
+                (c, [I (new_var, Alloca(Void))] >@ cmp_block h (add_local c id (id.elt, ty)) rt st1)
             else failwith "vtable crawl unimplemented"
               (*Loop to crawl up vtbls looking for C*)
           | _ -> failwith "unsure if this is valid case of downcast"
