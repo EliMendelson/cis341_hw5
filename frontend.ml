@@ -953,6 +953,7 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
               let end_lbl = gensym "end" in
               let vname_id = gensym "vname" in
               let vobj_id = gensym "vobj" in
+              let null_cmp = gensym "null" in
               let tgt_id = gensym "tgt" in
               let tgt_loc = gensym "tgtloc" in
 
@@ -969,7 +970,8 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
                 [I (vname_id, Bitcast(vname_ptr_ty, (Gid vname), Ptr(I8)))] >@
                 [I (vobj_id, Bitcast(vobj_ptr_ty, (Gid vobj), Ptr(I8)))] >@
                 [I ("", Store(ppi8, (Id vptr_id), (Id vptr_loc)))] >@
-                [T (Br loop_lbl)] >@
+                [I (null_cmp, Icmp(Eq, ppi8, (Id vptr_id), Null))] >@
+                [T (Cbr ((Id null_cmp), st2_lbl, loop_lbl))] >@
                 [L loop_lbl] >@
                 [I (vc2_id, Load(Ptr(ppi8), Id vptr_loc))] >@
                 [I (vc_id, Load(ppi8, Id vc2_id))] >@
