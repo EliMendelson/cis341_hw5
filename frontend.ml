@@ -548,13 +548,6 @@ let rec cmp_exp h (c:ctxt) (exp:t exp) : (Ll.ty * Ll.operand * stream) =
      - compile the arguments to the constructor and call the constructor
      - bitcast the object pointer to the appropriate object type              *)
   | Ast.NewObj(cid, es) ->
-    (*let args_l, args_s = List.fold_left
-      (fun (l,s) x ->
-        let llty, llop, stream = cmp_exp h c x in
-        ([(llty,llop)] >@ l, s >@ stream)
-      ) 
-      ([], [])
-      es in *)
     let newobj_id = gensym "newobj" in
     let ret_id = gensym "newobjret" in
     let class_ty = cmp_typ (ast_class_typ cid) in
@@ -915,10 +908,9 @@ and cmp_stmt h (c:ctxt) (rt:rtyp) (stmt : t Ast.stmt) : ctxt * stream =
 
       - Note: I8* is a 'compatible' type for all of these comparisons.         *)
   | Ast.Cast(ty, id, e, st1, st2) ->
-    (****The stream is probably not correct: it may need to compile id****)
     assert (ty <> e.ext);
     Tctxt.assert_typ_subtype h ty e.ext;
-    try lookup_local id.elt c; failwith "variable already in context"
+    try let _ = lookup_local id.elt c in failwith "variable already in context"
     with Not_found ->
       let null_cmp = gensym "nullcmp" in
       let lbl_st1, lbl_st2, lbl_end = gensym "st1", gensym "st2", gensym "end" in
